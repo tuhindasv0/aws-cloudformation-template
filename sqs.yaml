@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: creating SQS queues
+
+Resources: 
+  sqsQueueContentPiblisher:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: content-piblisher-queue.fifo
+      DelaySeconds: 5
+      FifoQueue:  true
+  sqsQueueContentUnpiblisher:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: content-unpiblisher-queue.fifo
+      DelaySeconds: 5
+      FifoQueue:  true
+  sqsQueueSearchPiblisher:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: search-piblisher-queue.fifo
+      DelaySeconds: 5
+      FifoQueue:  true
+  sqsQueueSearchUnpiblisher:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: search-unpiblisher-queue.fifo
+      DelaySeconds: 5
+      FifoQueue:  true
+ 
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+        - PolicyName: allowLambdaLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:*
+              Resource: arn:aws:logs:*:*:*
+        - PolicyName: allowSqs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+              Resource:
+              - !GetAtt sqsQueueContentPiblisher.Arn
+              - !GetAtt sqsQueueContentUnpiblisher.Arn
+  ContentLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+         ZipFile: |
+            exports.handler = async (event) => {
+   
+            const response = {
+            statusCode: 200,
+            body: JSON.stringify('Hello from Lambda!'),
+                      };
+            return response;
+            };
+      Handler: index.handler
+      FunctionName: content-lambda
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs14.x
+      Timeout: 20
+      MemorySize: 512
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: 'true'
+      EventSourceArn: !GetAtt sqsQueueContentPiblisher.Arn
+      FunctionName: !GetAtt ContentLambdaFunction.Arn
+  LambdaFunctionEventSourceMapping2:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: 'true'
+      EventSourceArn: !GetAtt sqsQueueContentUnpiblisher.Arn
+      FunctionName: !GetAtt ContentLambdaFunction.Arn
+
+  LambdaExecutionRoleforSearch:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+        - PolicyName: allowLambdaLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:*
+              Resource: arn:aws:logs:*:*:*
+        - PolicyName: allowSqs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+              Resource:
+              - !GetAtt sqsQueueSearchPiblisher.Arn
+              - !GetAtt sqsQueueSearchUnpiblisher.Arn
+  ContentLambdaFunctionSearch:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+         ZipFile: |
+            exports.handler = async (event) => {
+   
+            const response = {
+            statusCode: 200,
+            body: JSON.stringify('Hello from Lambda!'),
+                      };
+            return response;
+            };
+      Handler: index.handler
+      FunctionName: search-lambda
+      Role: !GetAtt LambdaExecutionRoleforSearch.Arn
+      Runtime: nodejs14.x
+      Timeout: 20
+      MemorySize: 512
+  LambdaFunctionEventSourceMappingSearch:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: 'true'
+      EventSourceArn: !GetAtt sqsQueueSearchPiblisher.Arn
+      FunctionName: !GetAtt ContentLambdaFunctionSearch.Arn
+  LambdaFunctionEventSourceMappingSearch2:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: 'true'
+      EventSourceArn: !GetAtt sqsQueueSearchUnpiblisher.Arn
+      FunctionName: !GetAtt ContentLambdaFunctionSearch.Arn
+
+
+Outputs:
+  sqsQueueContentPiblisherURL: 
+    Description: "URL of new Amazon SQS Queue"
+    Value: 
+      Ref: "sqsQueueContentPiblisher"
+  sqsQueueContentUnpiblisherURL: 
+    Description: "URL of new Amazon SQS Queue"
+    Value: 
+      Ref: "sqsQueueContentUnpiblisher"
+  sqsQueueSearchPiblisherURL: 
+    Description: "URL of new Amazon SQS Queue"
+    Value: 
+      Ref: "sqsQueueSearchPiblisher"
+  sqsQueueSearchUnpiblisherURL: 
+    Description: "URL of new Amazon SQS Queue"
+    Value: 
+      Ref: "sqsQueueSearchUnpiblisher"
