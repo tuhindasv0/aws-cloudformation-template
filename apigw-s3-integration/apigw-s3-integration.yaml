@@ -1,0 +1,109 @@
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: api-gateway-integration
+  APIGateway:
+    Properties:
+      Description: API Endpoint to receive JSON payloads and queue in SQS
+      Name: APIGateway
+    Type: AWS::ApiGateway::RestApi
+  APIGatewayRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action: s3:*
+                Effect: Allow
+                Resource: '*'
+            Version: '2012-10-17'
+          PolicyName: apig-s3-policy
+      RoleName: apig-s3-role
+    Type: AWS::IAM::Role
+  v1Resource:
+    Properties:
+      ParentId: !GetAtt 'APIGateway.RootResourceId'
+      PathPart: v1
+      RestApiId: !Ref 'APIGateway'
+    Type: AWS::ApiGateway::Resource
+  BucketResource:
+    Properties:
+      ParentId: !Ref v1Resource
+      PathPart: bucket
+      RestApiId: !Ref 'APIGateway'
+    Type: AWS::ApiGateway::Resource
+  ObjectResource:
+    Properties:
+      ParentId: !Ref BucketResource
+      PathPart: '{file}'
+      RestApiId: !Ref 'APIGateway'
+    Type: AWS::ApiGateway::Resource
+  GetObjectMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref ObjectResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      RequestParameters:
+            method.request.path.file: true
+            method.request.path.Content-Type: false
+      Integration:
+          Credentials: !GetAtt 'APIGatewayRole.Arn'
+          IntegrationHttpMethod: GET
+          RequestParameters:
+            integration.request.path.object: method.request.path.file
+            integration.request.path.Content-Type: method.request.path.Content-Type
+          IntegrationResponses:
+            - StatusCode: 200
+          PassthroughBehavior: WHEN_NO_MATCH
+          Type: AWS
+          Uri: !Join
+            - ''
+            - - 'arn:aws:apigateway:'
+              - !Ref 'AWS::Region'
+              - :s3:path/
+              - api-gateway-integration/{object}
+      MethodResponses:
+        - StatusCode: 200
+  PutObjectMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref ObjectResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      RequestParameters:
+            method.request.path.file: true
+            method.request.path.Content-Type: false
+      Integration:
+          Credentials: !GetAtt 'APIGatewayRole.Arn'
+          IntegrationHttpMethod: PUT
+          RequestParameters:
+            integration.request.path.object: method.request.path.file
+            integration.request.path.Content-Type: method.request.path.Content-Type
+          IntegrationResponses:
+            - StatusCode: 200
+          PassthroughBehavior: WHEN_NO_MATCH
+          Type: AWS
+          Uri: !Join
+            - ''
+            - - 'arn:aws:apigateway:'
+              - !Ref 'AWS::Region'
+              - :s3:path/
+              - api-gateway-integration/{object}
+      MethodResponses:
+        - StatusCode: 200
+
+
